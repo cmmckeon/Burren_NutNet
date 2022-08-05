@@ -3,10 +3,10 @@ title: "00_burren_code"
 author: "Caroline McKeon"
 date: "12/8/2021"
 output:
+  word_document: default
+  pdf_document: default
   html_document:
     df_print: paged
-  pdf_document: default
-  word_document: default
 ---
 
 need to mute "table chunk" if you're knnitting to word
@@ -491,7 +491,7 @@ annotate_figure(resp,
 ```
 
 
-```{r table chunk, fig.height=20, fig.width=7.5}
+```{r table chunk, eval=FALSE, fig.height=20, fig.width=7.5, include=FALSE}
 #n1 <- as.data.frame(cbind(c("", "Biomass (mg)", "", ""), c(4,4,4,4)))
 add_header_above(
   k_m2_a2,
@@ -691,30 +691,6 @@ legend(x="right", cex = 1, legend=c("min", "mid", "max"),fill=viridis_pal(option
 ```
 Figure 5. Jaccard dissimilarity matrix. Coloured blocks along the left hand side of the matrix represent years 2015-2020, coloured blocks along the top correspond with control, fenced, NPK and NPK + fenced treatments. Colours within the dissimilarity matrix represent a continuum from minimal to maximal dissimilarity between the experimental plots. For example, squares along the diagonal of the matrix are pale blue in colour (low dissimilarity) as they represent the estimated level of dissimilarity between an experimental plot for the same year and treatment (i.e. dissimilarity of experimental plots compared to themselves). Squares in the bottom righthand area of the matrix are dark blue in colour (high dissimilarity) as they represent dissimilarity between experimental plots in year 2015 and 2019-2020. Darker vertical stripes down the centre left of the matrix represent comparison between different treatments within the same year.  
 
-get which species occurrence in which plots
-```{r}
-# 
-# quick <- taxa_cover[taxa_cover$year == 2020 & taxa_cover$trt %in%  c("Control", "Fence", "NPK", "NPK+Fence"),]
-# 
-# change <- as.data.frame(unique(taxa_cover$taxa))
-# for (i in  c("Control", "Fence", "NPK", "NPK+Fence")){
-#   change[,i] <- 0
-# }
-# 
-# names(change) <- c("taxa", "Control", "Fence", "NPK", "NPK+Fence")
-#  
-# for(i in levels(change$taxa)){
-#   for(j in c("Control", "Fence", "NPK", "NPK+Fence")){
-#       change[,j][change$taxa == i] <- length(quick$taxa[quick$taxa == i & quick$trt == j])/3
-#     }
-# }
-# 
-# rownames(change) <- change$taxa
-# change <- change[order(change$taxa),]
-# #change <- change[,-1]
-# 
-```
-
 
 ## Visualise change in species identity
 ```{r}
@@ -731,14 +707,14 @@ quick$heat <- round(quick$heat, 2)
 quick$heat <- factor(quick$heat)
 ```
 
-```{r  fig.width= 8, fig.height=16}
+```{r  fig.width= 8, fig.height=17}
 ggplot(data=quick,aes(x=trt,y=taxa,col=heat)) +
   geom_point(size = 10) +  guides(col=guide_legend(title="Occurrence")) +
   scale_color_manual(values=c("#F7D340FF", "#FCA007FF", "#E55C30FF")) 
 ```
 
 ## Species list
-```{r}
+```{r eval=FALSE, include=FALSE}
 all_spp <- as.data.frame(all_spp)
 all_spp$spp <- all_spp$spp[order(all_spp$spp)]
 #make df of lmer output
