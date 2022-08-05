@@ -90,8 +90,15 @@ b_cover <- rbind(b_cover, b_cover2)
 rm(b_cover2)
 
 ## get rid of random entries that are definitely not Burren endemics
-random <- c("ground", "other", "litter", "other litter", "bare ground", "bryophytes", "other rock", "other animal droppings", "other disturbed soil")
-b_cover <- b_cover[b_cover$taxa %nin% random,]
+ground <- c("ground", "other",  "bare ground", "other disturbed soil", "other rock", "ground rock")
+b_cover$taxa <- gsub(paste(ground, collapse="|"),"ground", b_cover$taxa)
+
+litter <- c("litter", "other litter", "ground animal droppings", "other animal droppings", "ground litter")
+b_cover$taxa <- gsub(paste(litter, collapse="|"),"litter", b_cover$taxa)
+
+b_cover$taxa <- gsub("bryophytes", "bryophyte", b_cover$taxa) 
+
+random <- c("ground","litter","bryophyte")
 
 b_cover$taxa <- gsub("species", "sp.", b_cover$taxa) 
 b_cover$taxa <- gsub("  ", " ", b_cover$taxa) 
