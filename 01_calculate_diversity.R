@@ -85,7 +85,7 @@ b_cover2 <- b_cover2[, which(names(b_cover2) %in% c("year", "site_code", "block"
 b_cover <- b_cover[, which(names(b_cover) %in% c("year", "site_code", "block", "plot", "max_cover",
                                                  "taxa"))]
 
-
+ 
 b_cover <- rbind(b_cover, b_cover2)
 rm(b_cover2)
 
