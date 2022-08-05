@@ -1,0 +1,753 @@
+---
+title: "00_burren_code"
+author: "Caroline McKeon"
+date: "12/8/2021"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+need to mute "table chunk" if you're knnitting to word
+
+# Set up  
+
+```{r setup, include=FALSE}
+# Quick visual report of the Slieve Carran Nutnet site in the Burren, Co. Clare, Ireland, for Dr Maria Long of the NPWS.
+knitr::opts_chunk$set(echo = FALSE, fig.height = 8, fig.width = 10, warning = FALSE)
+library(tidyverse)
+library(lme4)
+library(sjPlot)
+library(ggpubr)
+#install.packages('TMB', type = 'source')
+library(glmmTMB) ## R version 3.6.2 (2019-12-12) -- "Dark and Stormy Night" 
+library(ggeffects)
+library(vegan)
+library(kableExtra)
+library(lme4)
+library(optimx)
+library(dfoptim)
+library(DHARMa)
+library(vegan)
+library(RColorBrewer)
+library(viridis)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(gdistance)
+library(raster)
+library(sf)
+library(sp)
+library(scales)
+library("mvnormtest")
+## create "not in" operator
+'%nin%' = Negate('%in%')
+
+set_theme(
+  base = theme_classic(),
+  axis.title.size = 2,
+  axis.textsize = 1.2,
+  legend.size = 2,
+  legend.title.size = 1.5,
+  geom.label.size = 3,  plot.margin = margin(15, 15, 15, 15, "pt")
+)
+```
+
+## Read in data
+```{r echo=FALSE}
+## read in NutNet data available from the Dropbox
+# enviro <-read.csv("comb-by-plot-clim-soil-diversity-06-May-2021.csv") 
+# diversity <-read.csv("plot_diversity_stats2-06-May-2021.csv") #  "Data_plot_diversity_stats2-22-Feb-2019.csv")
+# biomass <-read.csv("full-biomass-06-May-2021.csv") #"Data_full-biomass-22-February-2019.csv")
+# cover <-read.csv("full-cover-06-May-2021.csv") #"Data_full-cover-22-February-2019.csv")
+
+## subset all NutNet to get slieve carran data (site code: burren.ie)
+# b_enviro <- enviro[enviro$site_code == "burren.ie",]
+# b_diversity <-diversity[diversity$site_code == "burren.ie",]
+# b_biomass <-biomass[biomass$site_code == "burren.ie",]
+# b_cover <-cover[cover$site_code == "burren.ie",]
+# 
+# write.csv(b_enviro, "Data_NutNet_slieve_carran_2015_2018_b_enviro.csv")
+# write.csv(b_diversity, "Data_NutNet_slieve_carran_2015_2018_b_diversity.csv")
+# write.csv(b_biomass, "Data_NutNet_slieve_carran_2015_2018_b_biomass.csv")
+# write.csv(b_cover, "Data_NutNet_slieve_carran_2015_2018_b_cover.csv")
+
+b_enviro <- read.csv("Data_NutNet_slieve_carran_2015_2018_b_enviro.csv")
+b_diversity <- read.csv("Data_NutNet_slieve_carran_2015_2018_b_diversity.csv")
+b_biomass <- read.csv("Data_NutNet_slieve_carran_2015_2018_b_biomass.csv")
+b_cover <- read.csv("Data_NutNet_slieve_carran_2015_2018_b_cover.csv")
+trt_match <- read.csv("Data_NutNet_slieve_carran_2015_2018_b_biomass.csv")
+
+## read in data not yet included in NutNet dataset 
+b_biomass_2019 <- read.csv("Data_NutNet_slieve_carran_2019_b_biomass.csv")
+b_cover_2019 <- read.csv("Data_NutNet_slieve_carran_2019_b_cover.csv")
+b_biomass_2020 <- read.csv("Data_NutNet_slieve_carran_2020_b_biomass.csv")
+b_cover_2020 <- read.csv("Data_NutNet_slieve_carran_2020_b_cover.csv")
+
+b_diversity <- b_diversity[, which(names(b_diversity) %in% c("site_code", "year", "block", "plot", "richness_vegan", 
+                                                             "shannon", "inverse_simpson", "evenness"))] 
+
+```
+
+## plot slieve carran in context of other NutNet sites
+```{r fig.width= 14, fig.height=7}
+## plot species richness for all Nutnet sites
+# cover$speciesnumber <-0
+# 
+# for (i in unique(cover$site_code)){
+#   cover$speciesnumber[cover$site_code == i] <- length(unique(cover$Taxon[cover$site_code == i]))  
+#   }
+# cover$speciesnumber[cover$site_code == "burren.ie"] <- 85
+# plotting <- unique(cover[, which(names(cover) %in% c("speciesnumber", "site_code"))])
+# plotting <- plotting[order(plotting$speciesnumber),]
+# plotting$num <- 1:length(plotting$site_code)
+# 
+# write.csv(plotting, "Data_NutNet_enviro_plotting.csv")
+#
+# plotting2 <- enviro[, which(names(enviro) %in% c("site_code", "MAP_v2", "MAT_v2"))]
+# write.csv(plotting2, "Data_NutNet_enviro_plotting2.csv")
+
+plotting <- read.csv("Data_NutNet_enviro_plotting.csv")
+plotting2 <- read.csv("Data_NutNet_enviro_plotting2.csv")
+
+A <- ggplot(plotting, aes(speciesnumber, num)) + geom_point(shape =1)+
+         labs(x="Number of Species", 
+              y= "128 NutNet sites") + 
+  geom_point(data=plotting[plotting$site_code == "burren.ie",], color = "red") +
+  geom_text(data=plotting[plotting$site_code == "burren.ie",], aes(label=" Slieve Carran"), 
+            color="black", size = 5, nudge_y =  -3, nudge_x =  15) + theme(legend.position="none")
+
+B <- ggplot(plotting2, aes(MAP_v2, MAT_v2)) + geom_point(shape =1)+
+         labs(x="Mean annual precipatation (mm)", 
+              y= "Mean annual temperature (degrees C)") + 
+  geom_point(data=plotting2[plotting2$site_code == "burren.ie",], color = "red") +
+  geom_text(data=plotting2[plotting2$site_code == "burren.ie",], aes(label=" Slieve Carran"), 
+            color="black", size = 5, nudge_y =  -0.7, nudge_x =  150) + theme(legend.position="none")
+
+resp <-ggarrange(A, B, labels = c("A", "B"), nrow = 1, ncol = 2, common.legend = TRUE, legend = "top")
+resp
+
+```
+
+map slieve carran in national context
+```{r}
+## get data from natural earth for all the islands in the list
+ireland <- ne_countries(scale = 10, country = "Ireland", returnclass = "sf")
+ni <- ne_countries(scale = 10, country = "United Kingdom", returnclass = "sf")
+ireland1 <- ireland$geometry[[1]]
+ni1 <- ni$geometry[[1]]
+
+# vert <- as.numeric(c())
+# number <- as.numeric(c())
+# for(i in 1:length(ni1)){
+#   vert <- append(vert, length(ni1[[i]][[1]]))
+#   number <- c(number, i)}
+# mains <- as.data.frame(cbind(number, vert))
+
+ireland1 <- st_polygon(list(rbind(ireland1[[1]][1][[1]], ni1[[1]][1][[1]])))
+
+par(bg = "transparent")
+plot(ireland1, col = "white")
+points(-8.992624, 53.07202, type = "p", cex = 4, lwd = 5, col = "red")
+points(-8.992624, 53.07202, type = "p", cex = 2, lwd = 5, col = "yellow")
+points(-8.992624, 53.07202, type = "p", cex = 0.5, lwd = 5, col = "red")
+
+```
+
+
+## Calculate metrics
+```{r}
+## add in  2019 and 2020 data, calculate all metrics needed for analysis for all years
+#source("01_calculate_diversity.R")
+```
+
+
+```{r}
+#handy tricks
+# save(list=ls(all=T), file = "./quick_load_SCNN_enviro.rda")
+# rm(list=ls())
+ load("./quick_load_SCNN_enviro.rda")
+```
+
+```{r}
+# show_col(viridis_pal(option = "C", direction = -1)(10))
+# dput(viridis_pal(option = "C", direction = -1)(10))
+
+full_pal <-c("#F0F921FF", "#FDC926FF", "#D8576BFF","#FA9E3BFF", "#BD3786FF","#7301A8FF",  "#47039FFF", "#ED7953FF","#9C179EFF", "#0D0887FF")
+
+pal <-c("#F0F921FF","#ED7953FF","#9C179EFF", "#0D0887FF")
+
+```
+
+## Plot data
+```{r Relationships in raw data, fig.height=25, fig.width=8}
+## can reorder treatment levels from low to high impact on species numbers
+b_biomass$trt <- factor(b_biomass$trt, levels = c("Control", "K","P", "N", "PK", "NK", "NP", "NPK","Fence", "NPK+Fence"))
+
+raw1 <-ggplot(b_biomass, aes(as.factor(year), mass_trt, color=trt))+
+  geom_boxplot()+
+  labs(x="Year of Treatment", y="Biomass")+ 
+  guides(fill=guide_legend(title="Treatment")) +
+  theme(axis.text.x = element_blank(), axis.title.x = element_blank())  
+
+raw2 <- ggplot(b_cover, aes(as.factor(year), species_trt, color=trt))+
+  geom_boxplot()+
+  labs(x="Year of Treatment", y="Species numbers")+ 
+  guides(fill=guide_legend(title="Treatment")) +
+  theme(axis.text.x = element_blank(), axis.title.x = element_blank()) 
+
+## can reorder treatment levels from low to high impact on species numbers
+b_diversity$trt <- factor(b_diversity$trt, levels = c("Control", "K","P", "N", "PK", "NK", "NP", "NPK","Fence", "NPK+Fence"))
+
+raw3 <- ggplot(b_diversity, aes(as.factor(year), shannon, color=trt))+
+  geom_boxplot()+
+  labs(x="Year of Treatment", y="Shannon diversity") + 
+  guides(fill=guide_legend(title="Treatment")) +
+  theme(axis.text.x = element_blank(), axis.title.x = element_blank()) 
+
+raw4 <-ggplot(b_diversity, aes(as.factor(year), inverse_simpson, color=trt))+
+  geom_boxplot()+
+  labs(x="Year of Treatment", y="Inverse Simpson diversity")+ 
+  guides(fill=guide_legend(title="Treatment")) +
+  theme(axis.text.x = element_blank(), axis.title.x = element_blank()) 
+
+raw5 <- ggplot(b_diversity, aes(as.factor(year), evenness, color=trt))+
+  geom_boxplot()+
+  labs(x="Year of Treatment", y="Species evenness")+ 
+  guides(fill=guide_legend(title="Treatment"))
+
+raw1 <- raw1 + scale_color_manual(values=paste(full_pal))
+raw2 <- raw2 + scale_color_manual(values=paste(paste(full_pal)))
+raw3 <- raw3 + scale_color_manual(values=paste(paste(full_pal)))
+raw4 <- raw4 + scale_color_manual(values=paste(paste(full_pal)))
+raw5 <- raw5 + scale_color_manual(values=paste(paste(full_pal)))
+
+resp <-ggarrange(raw1, raw2, raw3, raw4, raw5, labels = c("A", "B", "C", "D", "E"), nrow = 5, ncol = 1, common.legend = TRUE, legend = "top")
+annotate_figure(resp,
+                top = text_grob("Effect of Treatment on biodiverity metrics", #color = "black", 
+                                face = "bold", size = 20)
+                )
+resp
+```
+
+## Analysis
+```{r}
+# Repeated measures analysis
+# First, subset to only control NPK and the fenced versions of these 
+
+b <- b_biomass[b_biomass$trt %in% c("Control", "NPK", "NPK+Fence", "Fence" ),]
+c <- b_cover[b_cover$trt %in% c("Control", "NPK", "NPK+Fence", "Fence" ),]
+d <- b_diversity[b_diversity$trt %in% c("Control", "NPK", "NPK+Fence", "Fence" ),]
+```
+
+```{r}
+## create allFit comparative function
+compare_est <- function(x) {
+  ss <- summary(x)
+  print(ss$which.OK) ## logical vector: which optimizers worked? 
+  ##the other components only contain values for the optimizers that worked
+  print("vector of log-likelihoods")
+  print(ss$llik) ## vector of log-likelihoods
+  print("table of fixed effects")
+  print(ss$fixef) ## table of fixed effects
+  print("table of random effect SDs and correlations")
+  print(ss$sdcor) ## table of random effect SDs and correlations
+  print("table of random effects parameters")
+  print(ss$theta) ## table of random effects parameters, Cholesky scale
+}
+
+r2 <- function(model) {
+  ouput <- summary(model)
+  1 - ouput$deviance / ouput$null.deviance
+}
+```
+
+```{r Biomass, include=FALSE}
+b$year <- factor(b$year, levels=c("2015", "2016", "2017", "2018", "2019", "2020"))
+b$year <- as.numeric(b$year)
+
+m2_a <- lmer(log(mass_trt) ~ trt*year +
+               (1|block/plot),
+               data = b) ## singular fit
+
+summary(m2_a)
+```
+
+```{r diagnostics biomass, eval=FALSE, include=FALSE}
+set.seed(17)
+simulationOutput <- simulateResiduals(fittedModel = m2_a, n = 50000)
+
+plot(simulationOutput)
+testResiduals(simulationOutput)
+testDispersion(simulationOutput)
+testUniformity(simulationOutput) ## If ks test p value is < 0.5, then the residuals ARE different from the qq plot line, and so, NOT normally distributed. 
+# plotResiduals(b$year, simulationOutput$scaledResiduals) 
+# plotResiduals(factor(b$trt), simulationOutput$scaledResiduals)
+
+x <- allFit(m2_a, meth.tab = NULL, data=b, verbose = FALSE,
+            show.meth.tab = FALSE, maxfun = 1e5, parallel = "multicore",
+            ncpus = getOption("allFit.ncpus", 1L), cl = NULL)
+compare_est(x)
+```
+
+```{r Species number, include=FALSE}
+d$year <- factor(d$year, levels=c("2015", "2016", "2017", "2018", "2019", "2020"))
+d$year <- as.numeric(d$year)
+c$year <- factor(c$year, levels=c("2015", "2016", "2017", "2018", "2019", "2020"))
+c$year <- as.numeric(c$year)
+
+# hist(c$species_trt)
+# hist(d$richness_vegan)
+
+m2_b <- lmer(richness_vegan ~ trt*year + (1|block/plot), data = d)
+
+summary(m2_b)
+```
+
+```{r diagnostics species richness, eval=FALSE, include=FALSE}
+set.seed(17)
+simulationOutput <- simulateResiduals(fittedModel = m2_b, n = 50000)
+
+plot(simulationOutput)
+testResiduals(simulationOutput)
+testDispersion(simulationOutput)
+testUniformity(simulationOutput)
+
+x <- allFit(m2_b, meth.tab = NULL, data=c, verbose = TRUE,
+            show.meth.tab = FALSE, maxfun = 1e5, parallel = "multicore",
+            ncpus = getOption("allFit.ncpus", 1L), cl = NULL)
+compare_est(x)
+```
+
+```{r Shannon, include=FALSE}
+hist(d$shannon, 10)
+m2_c <- lmer(shannon ~ trt*year + (1|block/plot), data = d) 
+summary(m2_c)
+```
+
+```{r diagnostics shannon, eval=FALSE, include=FALSE}
+set.seed(17)
+simulationOutput <- simulateResiduals(fittedModel = m2_c, n = 50000)
+
+plot(simulationOutput)
+testResiduals(simulationOutput)
+testDispersion(simulationOutput)
+testUniformity(simulationOutput) 
+
+x <- allFit(m2_c, meth.tab = NULL, data=d, verbose = TRUE,
+            show.meth.tab = FALSE, maxfun = 1e5, parallel = "multicore",
+            ncpus = getOption("allFit.ncpus", 1L), cl = NULL)
+compare_est(x)
+```
+
+```{r inverse_simpson, include=FALSE}
+hist(d$inverse_simpson, breaks = 100)
+d$inverse_simpson <- round(d$inverse_simpson, 3)*1000
+
+m2_d <- lmer(log(inverse_simpson) ~ trt*year + (1|block/plot), data = d)
+summary(m2_d)
+```
+
+```{r diagnostics simpsons, eval=FALSE, include=FALSE}
+set.seed(17)
+simulationOutput <- simulateResiduals(fittedModel = m2_d, n = 50000)
+
+plot(simulationOutput)
+testResiduals(simulationOutput)
+testDispersion(simulationOutput)
+testUniformity(simulationOutput) 
+
+x <- allFit(m2_d, meth.tab = NULL, data=d, verbose = TRUE,
+            show.meth.tab = FALSE, maxfun = 1e5, parallel = "multicore",
+            ncpus = getOption("allFit.ncpus", 1L), cl = NULL)
+compare_est(x)
+```
+
+```{r evenness, include=FALSE}
+hist((d$evenness), breaks = 100)
+
+m2_e <- lmer(evenness ~ trt*year + (1|block/plot), data = d)
+
+summary(m2_e)
+```
+
+```{r diagnostics evenness, eval=FALSE, include=FALSE}
+set.seed(17)
+simulationOutput <- simulateResiduals(fittedModel = m2_e, n = 50000)
+
+plot(simulationOutput)
+testResiduals(simulationOutput)
+testDispersion(simulationOutput)
+testUniformity(simulationOutput) 
+
+x <- allFit(m2_e, meth.tab = NULL, data=b, verbose = TRUE,
+            show.meth.tab = FALSE, maxfun = 1e5, parallel = "multicore",
+            ncpus = getOption("allFit.ncpus", 1L), cl = NULL)
+compare_est(x)
+```
+
+```{r make table functions}
+## Tables
+
+# Significant terms are shown in bold. Estimates highlighted in blue show a positive effect of a treatment on a given metric. Estimates highlighted in red show a negative effect of treatments on metrics. 
+gaussian_kable <- function(model, title) {
+sum_model <- summary(model)[["coefficients"]]
+
+#make df of lmer output
+sum.df <- as_tibble(sum_model, rownames="Indepentant variable") %>% 
+  rename("t_value"="t value") %>% 
+  mutate_if(is.numeric, round, 3) %>%
+  mutate(Estimate=ifelse((t_value^2)>=4,str_c(Estimate," *"),Estimate))
+
+sum.df %>% 
+  kable(booktabs = T) %>%
+  kable_classic_2(full_width = F) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F) %>%
+  row_spec(which(sum.df$`t_value` < -2), bold = T, color = "red", background = "white")%>%
+  row_spec(which(sum.df$`t_value` >2), bold = T, color = "blue", background = "white") %>%
+  kable_styling(font_size = 7)
+
+}
+
+```
+
+```{r make table objects}
+k_m2_a2 <- gaussian_kable(m2_a) ## this one is log, but the output of the structures of the model objects are the same
+k_m2_b2 <- gaussian_kable(m2_b)
+k_m2_c2 <- gaussian_kable(m2_c)
+k_m2_d2 <- gaussian_kable(m2_d) ## this one is log, but the output of the structures of the model objects are the same
+k_m2_e2 <- gaussian_kable(m2_e)
+```
+
+## Plot models
+```{r plot models}
+g <- ggeffect(m2_a, terms = c("year","trt"), back.transform = TRUE, type = "fe") 
+g$group <- factor(g$group, levels = c("Control", "NPK","Fence", "NPK+Fence"))
+a2 <- ggplot(g, aes(x, predicted)) + 
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill = group), alpha =0.2, show.legend = F) +
+  geom_line(aes(colour=group), size = 3) +
+  labs(color = "Treatment", y="Biomass (mg)", x = "Year") + #, title = "Biomass")+
+    theme(axis.text.x = element_blank(), axis.title.x = element_blank()) 
+#plot(a2)
+b$year <- as.numeric(b$year)
+g <- ggeffect(m2_b, terms = c("year","trt"), back.transform = TRUE, type = "fe") 
+g$group <- factor(g$group, levels = c("Control", "K","P", "N", "PK", "NK", "NP", "NPK","Fence", "NPK+Fence"))
+b2 <- ggplot(g, aes(x, predicted)) + geom_line(aes(colour=group), size = 3) +
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill = group), alpha =0.2, show.legend = F) +
+  labs(color = "Treatment", y="Species Richness", x = "Year") + #, title = "Species Richness")+
+    theme(axis.text.x = element_blank(), axis.title.x = element_blank()) 
+#plot(b2)
+b_diversity$year <- as.numeric(b_diversity$year)
+g <- ggeffect(m2_c, terms = c("year","trt"), back.transform = TRUE, type = "fe") 
+g$group <- factor(g$group, levels = c("Control", "K","P", "N", "PK", "NK", "NP", "NPK","Fence", "NPK+Fence"))
+c2 <- ggplot(g, aes(x, predicted)) + geom_line(aes(colour=group), size = 3) +
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill = group), alpha =0.2, show.legend = F) +
+  labs(color = "Treatment", y="Shannon diversity", x = "Year") + #, title = "Shannon diversity")+
+    theme(axis.text.x = element_blank(), axis.title.x = element_blank()) 
+#plot(c2)
+g <- ggeffect(m2_d, terms = c("year","trt"), back.transform = TRUE, type = "fe") 
+g$group <- factor(g$group, levels = c("Control", "NPK","Fence", "NPK+Fence"))
+d2 <- ggplot(g, aes(x, predicted)) + geom_line(aes(colour=group), size = 3) +
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill = group), alpha =0.2, show.legend = F) +
+  labs(color = "Treatment", y="Inverse Simpsons index", x = "Year") + #, title = "Inverse Simpsons index")+
+    theme(axis.text.x = element_blank(), axis.title.x = element_blank()) 
+#plot(d2)
+g <- ggeffect(m2_e, terms = c("year","trt"), back.transform = TRUE, type = "fe") 
+g$group <- factor(g$group, levels = c("Control", "NPK","Fence", "NPK+Fence"))
+e2 <- ggplot(g, aes(x, predicted)) + geom_line(aes(colour=group), size = 3) +
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill = group), alpha =0.2, show.legend = F) +
+  labs(color = "Treatment", y="Evenness", x = "Year")  #, title = "Evenness")
+#plot(e2)
+
+a2 <- a2 + scale_color_manual(values=paste(pal))
+b2 <- b2 + scale_color_manual(values=paste(pal))
+c2 <- c2 + scale_color_manual(values=paste(pal))
+d2 <- d2 + scale_color_manual(values=paste(pal))
+e2 <- e2 + scale_color_manual(values=paste(pal))
+
+a2 <- a2 + scale_fill_manual(values=paste(pal))
+b2 <- b2 + scale_fill_manual(values=paste(pal))
+c2 <- c2 + scale_fill_manual(values=paste(pal))
+d2 <- d2 + scale_fill_manual(values=paste(pal))
+e2 <- e2 + scale_fill_manual(values=paste(pal))
+
+```
+
+```{r fig.height=20, fig.width=7.5}
+set_theme(
+  base = theme_classic(),
+  axis.title.size = 2,
+  axis.textsize = 1.2,
+  legend.size = 2,
+  legend.title.size = 1.5,
+  geom.label.size = 3,  plot.margin = margin(15, 15, 15, 15, "pt")
+)
+
+resp <-ggarrange(a2,b2,c2,d2,e2, labels = c("A", "B", "C", "D", "E"), nrow = 5, ncol = 1, common.legend = TRUE, legend = "bottom")
+annotate_figure(resp,
+                top = text_grob("Effect of Treatment on biodiverity metrics", #color = "black", 
+                                face = "bold", size = 20)
+                )
+```
+
+
+```{r table chunk, fig.height=20, fig.width=7.5}
+#n1 <- as.data.frame(cbind(c("", "Biomass (mg)", "", ""), c(4,4,4,4)))
+add_header_above(
+  k_m2_a2,
+  header = c("", "Biomass (mg)" =2, ""),
+  bold = TRUE,
+  color = "black")
+add_header_above(
+  k_m2_b2,
+  header = c("", "Species Richness" = 2, ""),
+  bold = TRUE,
+  color = "black")
+add_header_above(
+  k_m2_c2,
+  header = c("", "Shannon diversity" =2, ""),
+  bold = TRUE,
+  color = "black")
+add_header_above(
+  k_m2_d2,
+  header = c("", "Inverse Simpsons index" =2, ""),
+  bold = TRUE,
+  color = "black")
+add_header_above(
+  k_m2_e2,
+  header = c(" ", "Evenness" = 2, ""),
+  bold = TRUE,
+  color = "black")
+```
+
+
+
+```{r}
+median(b_diversity$richness_vegan[b_diversity$year == "2020" & b_diversity$trt =="Control"])
+median(b_diversity$richness_vegan[b_diversity$year == "2020" & b_diversity$trt =="NPK+Fence"])
+```
+
+## Dissimilarity analysis
+```{r}
+## read in and organise data
+taxa_cover <- readRDS("b_cover_taxa.rds")
+
+t <- taxa_cover[taxa_cover$trt %in% c("Control", "Fence", "NPK", "NPK+Fence"),]
+mydata <- droplevels(t[, which(names(t) %in% c("block", "plot", "taxa", "max_cover", "year", "trt"))])
+
+mydata$Plot <- as.numeric(as.character(paste(mydata$plot, mydata$year, sep = "")))
+mydata <- mydata[,c(7,1,4,5,2,6,3)]
+names(mydata) <- c( "Plot", "Habitat", "Species", "Abundance", "Year", "Treatment", "Block")
+```
+
+
+```{r, include=FALSE}
+## restructure the dataframe for your own nefarious purposes
+## create columns for each species
+mydata$Species <- factor(mydata$Species)
+mydata <- mydata[order(mydata$Year,mydata$Treatment),]
+x <- unique(mydata$Plot)
+mydata$Plot <- factor(mydata$Plot,  levels = paste(x))
+
+dissim <-unique(as.data.frame(mydata[,1]))
+names(dissim) <- "Plot"
+for (i in levels(mydata$Species)){
+  dissim[,i] <- as.character(NA)
+}
+
+## populate the columns with values for that trait
+for (i in levels(mydata$Species)){
+  for(j in unique(mydata$Plot)){
+  dissim[,i][dissim$Plot == j] <- 
+    ifelse(length(mydata$Abundance[mydata$Species == i & mydata$Plot == j]) > 0,
+           mydata$Abundance[mydata$Species == i & mydata$Plot == j],
+           0)
+  }}
+
+## make all columns numeric for the picky vegan
+for(i in names(dissim)){
+  dissim[,i] <- as.numeric(as.character(dissim[,i]))
+}
+
+rownames(dissim) <- dissim[,1]
+dissim[,1] <- NULL
+## am I a wizard?
+```
+
+get your jaccard dissimilarity matrix
+```{r, include=FALSE}
+dissim_jaccard <- vegdist(x = dissim, method="jaccard", binary = F, diag = F, upper = T)
+```
+
+compare the amount of variance in species composition explained by year and treatment for the 
+bray and the jaccard dissimilarities
+```{r, include=FALSE}
+check <- unique(mydata[, which(names(mydata) %in% c("Year", "Treatment", "Plot", "Block"))])
+rownames(check) <- check[,1]
+check[,1] <- NULL
+
+ dispersion_y <- betadisper(dissim_jaccard, check[,"Year"])
+ permutest(dispersion_y, pairwise=FALSE, permutations=10000)
+ dispersion_t <- betadisper(dissim_jaccard, check[,"Treatment"])
+ permutest(dispersion_t, pairwise=FALSE, permutations=10000)
+
+perma <- with(check, how(nperm = 1000, blocks = Block))
+m_jaccard <- adonis2(dissim_jaccard ~ Year, by="margin", method="jaccard", data = check, permutations = perma)
+m_jaccard <- adonis2(dissim_jaccard ~ Treatment, by="margin", method="jaccard", data = check, permutations = perma)
+m_jaccard <- adonis2(dissim_jaccard ~ Year*Treatment, by="margin", method="jaccard", data = check, permutations = perma)
+
+m_jaccard
+
+## ordiantation object
+or <- metaMDS(dissim, distance = "jaccard")
+```
+
+
+```{r fig.width= 10, fig.height=5}
+par(bty = "l", mfrow =c(1,2), mar = c(4,4,0,0))
+
+## Nonmetric Multidimensional Scaling of compositional dissimilarity by treatment
+ordiplot(or, type = "n", main = NULL)
+ordiellipse(or, groups = check$Treatment, draw = "polygon", lty = 1, 
+            col = c("#F0F921FF", "#9C179EFF","#ED7953FF","#0D0887FF"), alpha = 0.2)
+points(or, display = "sites", pch = c(16, 8, 17, 18) [as.numeric(check$Treatment)], 
+       col = c("#F0F921FF", "#9C179EFF","#ED7953FF","#0D0887FF")[as.numeric(check$Treatment)], cex =1.2)
+legend("topright", legend = levels(check$Treatment), pch = c(16, 8, 17, 18), col = c("#F0F921FF", "#9C179EFF","#ED7953FF","#0D0887FF"), 
+       bty = "n", cex = 1) # displays symbol and colour legend
+legend("topleft", legend = "A", bty = "n")
+
+#legend("topleft", "stress = 0.x", bty = "n", cex = 1)
+
+## Nonmetric Multidimensional Scaling of compositional dissimilarity by year
+ordiplot(or, type = "n", main = NULL)
+ordiellipse(or, groups = check$Year, draw = "polygon", lty = 1,
+            col = c("#FDE725FF", "#7AD151FF", "#22A884FF", "#2A788EFF", "#414487FF",
+"#440154FF"), alpha = 0.2)
+points(or, display = "sites", pch = c(16, 8, 17, 18, 19, 20)[factor(check$Year)], 
+       col = c("#FDE725FF", "#7AD151FF", "#22A884FF", "#2A788EFF", "#414487FF", "#440154FF")[factor(check$Year)], cex =1.2)
+legend("topright", legend = levels(factor(check$Year)), pch = c(16, 8, 17, 18, 19, 20), 
+       col = c("#FDE725FF", "#7AD151FF", "#22A884FF", "#2A788EFF", "#414487FF", "#440154FF"), bty = "n", cex = 1) # displays symbol and colour legend
+legend("topleft", legend = "B", bty = "n")
+#legend("topleft", "stress = 0.x", bty = "n", cex = 1)
+
+
+```
+
+
+```{r  fig.width= 8, fig.height=6}
+par(bty = "l")
+plot(dispersion_t, hull=FALSE, ellipse=TRUE, col = c("#F0F921FF", "#9C179EFF","#ED7953FF","#0D0887FF"), lwd = 1, cex = 2,
+     main = "PCoA of dispersion of species composition by treatment") ##sd ellipse
+#par(new = T)
+plot(dispersion_y, hull=FALSE, ellipse=TRUE, col = c("#FDE725FF", "#7AD151FF", "#22A884FF", "#2A788EFF", "#414487FF", 
+"#440154FF"), lwd = 1, cex = 2,
+     main = "PCoA of dispersion of species composition by year") ##sd ellipse
+
+
+#mshapiro.test(as.matrix(dissim_jaccard))
+```
+
+
+```{r}
+check <- check[order(check$Year,check$Treatment),]
+r <- as.data.frame(cbind(c(unique(as.character(check$Treatment))), 
+                         c("#F0F921FF", "#9C179EFF","#ED7953FF","#0D0887FF")))
+check <- merge(check, r, by.x = "Treatment", by.y = "V1")
+check <- check[order(check$Year,check$Treatment),]
+c <- as.data.frame(cbind(c(unique(as.character(check$Year))), c(viridis_pal(direction = -1)(6))))
+
+check <- merge(check, c, by.x = "Year", by.y = "V1")
+
+names(check) <- c("Year", "Treatment", "Block", "r", "c")
+check <- check[order(check$Year,check$Treatment),]
+
+check$r <- as.character(check$r)
+check$c <- as.character(check$c)
+```
+
+```{r}
+#dput(rownames(as.matrix(dissim_jaccard)))
+
+x <- as.data.frame(cbind(c(rep("    C",3),rep("    F",3),rep("    N",3),rep("N+F",3)),
+                         c(rep(c(1:3), 24)),
+                         c(rep(2015,12),rep(2016,12),rep(2017,12),rep(2018,12),rep(2019,12),rep(2020,12))))
+
+x$P <- as.character(paste(x$V1, x$V2, x$V3, sep = " "))
+
+y <- as.data.frame(as.matrix(dissim_jaccard))
+
+rownames(y) <- c(x$P)
+colnames(y) <- c(x$P)
+
+```
+
+```{r  fig.width= 8, fig.height=6}
+heatmap(as.matrix(y), Rowv=NA, Colv=NA, col= #colorRampPalette(brewer.pal(8, "Spectral"))(25),
+         viridis_pal(option="G",direction = -1)(900),
+        ColSideColors = check$r, RowSideColors = check$c)
+
+legend(x="right", cex = 1, legend=c("min", "mid", "max"),fill=viridis_pal(option="G",direction = -1)(3))
+       #colorRampPalette(brewer.pal(8, "Spectral"))(3))
+```
+Figure 5. Jaccard dissimilarity matrix. Coloured blocks along the left hand side of the matrix represent years 2015-2020, coloured blocks along the top correspond with control, fenced, NPK and NPK + fenced treatments. Colours within the dissimilarity matrix represent a continuum from minimal to maximal dissimilarity between the experimental plots. For example, squares along the diagonal of the matrix are pale blue in colour (low dissimilarity) as they represent the estimated level of dissimilarity between an experimental plot for the same year and treatment (i.e. dissimilarity of experimental plots compared to themselves). Squares in the bottom righthand area of the matrix are dark blue in colour (high dissimilarity) as they represent dissimilarity between experimental plots in year 2015 and 2019-2020. Darker vertical stripes down the centre left of the matrix represent comparison between different treatments within the same year.  
+
+get which species occurrence in which plots
+```{r}
+# 
+# quick <- taxa_cover[taxa_cover$year == 2020 & taxa_cover$trt %in%  c("Control", "Fence", "NPK", "NPK+Fence"),]
+# 
+# change <- as.data.frame(unique(taxa_cover$taxa))
+# for (i in  c("Control", "Fence", "NPK", "NPK+Fence")){
+#   change[,i] <- 0
+# }
+# 
+# names(change) <- c("taxa", "Control", "Fence", "NPK", "NPK+Fence")
+#  
+# for(i in levels(change$taxa)){
+#   for(j in c("Control", "Fence", "NPK", "NPK+Fence")){
+#       change[,j][change$taxa == i] <- length(quick$taxa[quick$taxa == i & quick$trt == j])/3
+#     }
+# }
+# 
+# rownames(change) <- change$taxa
+# change <- change[order(change$taxa),]
+# #change <- change[,-1]
+# 
+```
+
+
+## Visualise change in species identity
+```{r}
+
+quick <- droplevels(taxa_cover[taxa_cover$year == 2020 & taxa_cover$trt %in%  c("Control", "Fence", "NPK", "NPK+Fence"),])
+quick$taxa <- factor(quick$taxa)
+quick <- quick[order(quick$taxa),]
+for(i in levels(quick$taxa)){
+  for(j in levels(quick$trt)){
+      quick$heat[quick$taxa == i & quick$trt == j] <- length(quick$taxa[quick$taxa == i & quick$trt == j])/3
+    }
+}
+quick$heat <- round(quick$heat, 2)
+quick$heat <- factor(quick$heat)
+```
+
+```{r  fig.width= 8, fig.height=16}
+ggplot(data=quick,aes(x=trt,y=taxa,col=heat)) +
+  geom_point(size = 10) +  guides(col=guide_legend(title="Occurrence")) +
+  scale_color_manual(values=c("#F7D340FF", "#FCA007FF", "#E55C30FF")) 
+```
+
+## Species list
+```{r}
+all_spp <- as.data.frame(all_spp)
+all_spp$spp <- all_spp$spp[order(all_spp$spp)]
+#make df of lmer output
+sum.df <- as_tibble(all_spp$spp) 
+
+sum.df %>% 
+  kable(booktabs = T) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F) %>%
+  kable_styling(font_size = 7)
+```
+
+
